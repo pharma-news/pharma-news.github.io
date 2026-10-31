@@ -482,3 +482,15 @@ td.grade.g3{color:#5b6b8a}
 .voice-rate input[type=range]{flex:1; height:28px; accent-color:#e0245e; touch-action:none}
 #rate-val{font-size:14px; font-weight:600; color:#7a3a52; min-width:120px; text-align:right}
 @media (max-width:560px){ #rate-val{min-width:0; text-align:left} }
+
+/* ---------------- блок записи живого голоса ---------------- */
+.clip-block{margin:14px 0 4px; padding:12px 14px; background:#fff6fb; border:1.5px dashed #ffcfe4; border-radius:16px}
+.clip-title{font-weight:700; color:#7a3a52; margin-bottom:6px; font-size:16px}
+.clip-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px dashed #ffe0ee}
+.clip-row:last-child{border-bottom:0}
+.clip-txt{flex:1; display:flex; flex-direction:column; font-size:15px; line-height:1.35}
+.clip-txt small{color:#8a7fb0; font-size:12.5px; margin-top:3px}
+.clip-btns{display:flex; gap:6px; flex-wrap:wrap}
+.clip-mark{font-size:13px; color:#9a90b8; min-width:104px; text-align:right}
+.clip-row.has .clip-mark{color:#1d8a5f}
+@media (max-width:560px){ .clip-row{flex-wrap:wrap} .clip-mark{min-width:0; text-align:left} }

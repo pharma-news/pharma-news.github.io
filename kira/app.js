@@ -115,6 +115,20 @@ function chunkText(t){
   if(cur.trim()) out.push(cur.trim());
   return out;
 }
+/* Интонация по типу фразы: вопрос идёт вверх, похвала — выше и чуть медленнее,
+     середина длинного текста — ровно, конец — чуть вниз. Голос звучивает живее. */
+function prosody(part, idx, n, slow){
+  const base = Number(state.voiceRate)||0.93;
+  let rate = slow ? Math.max(0.55, base-0.18) : base;
+  let pitch = 1.06;
+  const t = String(part).trim();
+  if(/\?\s*$/.test(t))       { pitch = 1.26; rate += 0.03; }
+  else if(/[!…]\s*$/.test(t)){ pitch = 1.28; rate -= 0.05; }
+  else if(n>1 && idx===n-1)  { pitch = 1.00; rate -= 0.02; }
+  if(n>1 && idx===0 && pitch<1.2) pitch += 0.06;
+  if(/(?:пят[ёе]рка|молодец|умница|отлично|такой успех|так держать)/i.test(t)) pitch += 0.06;
+  return { rate: Math.min(1.3, Math.max(0.5, rate)), pitch: Math.min(1.6, Math.max(0.7, pitch)) };
+}
 function speak(text, slow){
   if(!state.sound || !text) return;
   caption(text);
@@ -125,13 +139,13 @@ function speak(text, slow){
   try{
     ss.cancel();
     clearInterval(keepAlive);
-    chunkText(text).forEach(part=>{
-      const u=new SpeechSynthesisUtterance(part);
+    const parts=chunkText(text);
+    parts.forEach((part,i)=>{
+      const pr=prosody(part, i, parts.length, slow);
+      const u=new SpeechSynthesisUtterance(i>0 ? ' '+part : part);
       u.lang='ru-RU';
       if(v) u.voice=v;
-      const r=Number(state.voiceRate)||0.93;
-      u.rate = slow ? Math.max(0.55, r-0.2) : r;
-      u.pitch=1.12; u.volume=1;
+      u.rate = pr.rate; u.pitch = pr.pitch; u.volume=1;
       ss.speak(u);
     });
     try{ ss.resume(); }catch(e){}
@@ -188,6 +202,123 @@ function fillVoiceList(){
   sel.value=cur;
   if(sel.value!==cur) sel.value='';
 }
+
+/* ---------------- живой голос: записанные фразы вместо синтеза ----------------
+   Синтез на планшете хороший, но самый тёплый голос для пятилетки — мамин.
+   Фразы можно записать один раз прямо на планшете (нужен микрофон и адрес https://),
+   дальше сайт будет хвалить Киру этим голосом, а не роботом. */
+const CLIPS={
+  pyaterka:{ text:'Кире, пятёрка!',        use:'самая важная похвала в конце игры' },
+  good:    { text:'Умница! Отлично получилось!', use:'за правильный ответ' },
+  near:    { text:'Почти правильно! Давай ещё разок.', use:'за ответ рядом с верным' },
+  four:    { text:'Кира получила четвёрку! Молодец! Ещё чуть-чуть старания, и будет пятёрка.', use:'за четвёрку' },
+  three:   { text:'Тройка, но Кира большая молодец, что старалась. Давай повторим, и будет пятёрка!', use:'за тройку' },
+  level:   { text:'Кира получила новый уровень! Так держать!', use:'новый уровень' },
+  rest:    { text:'Хватит играть, глазкам нужен отдых. Завтра будет ещё больше пятёрок!', use:'напоминание об отдыхе' }
+};
+let clipStore={}, recordingId=null, rec=null;
+const CLIP_DB='kiraVoiceClips', CLIP_STORE='clips';
+function openClipDB(){ return new Promise(res=>{
+  try{ const r=indexedDB.open(CLIP_DB,1);
+    r.onupgradeneeded=()=>{ try{ r.result.createObjectStore(CLIP_STORE); }catch(e){} };
+    r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch(e){ res(null); }
+}); }
+function clipReq(p){ return new Promise(res=>{ if(!p){ res(null); return; } p.onsuccess=()=>res(p.result); p.onerror=()=>res(null); }); }
+async function loadClips(){
+  const db=await openClipDB(); if(!db) return;
+  try{
+    const st=db.transaction(CLIP_STORE,'readonly').objectStore(CLIP_STORE);
+    const keys=await clipReq(st.getAllKeys()), vals=await clipReq(st.getAll());
+    (keys||[]).forEach((k,i)=>{ clipStore[k]=vals[i]; });
+  }catch(e){}
+  paintClipList();
+}
+async function clipSave(id,dataUrl){
+  clipStore[id]=dataUrl;
+  const db=await openClipDB();
+  if(db){ try{ const tx=db.transaction(CLIP_STORE,'readwrite'); tx.objectStore(CLIP_STORE).put(dataUrl,id);
+    await new Promise(res=>{ tx.oncomplete=res; tx.onerror=res; tx.onabort=res; }); }catch(e){} }
+  else{ try{ localStorage.setItem('clip:'+id, dataUrl); }catch(e){} }
+  paintClipList();
+}
+async function clipDelete(id){
+  delete clipStore[id];
+  const db=await openClipDB();
+  if(db){ try{ const tx=db.transaction(CLIP_STORE,'readwrite'); tx.objectStore(CLIP_STORE).delete(id);
+    await new Promise(res=>{ tx.oncomplete=res; tx.onerror=res; tx.onabort=res; }); }catch(e){} }
+  try{ localStorage.removeItem('clip:'+id); }catch(e){}
+  paintClipList();
+}
+function playClip(id){
+  const url=clipStore[id]; if(!url) return false;
+  try{ const a=new Audio(url); a.volume=1; const p=a.play(); if(p&&p.catch) p.catch(()=>{}); return true; }catch(e){ return false; }
+}
+/* похвала: сначала мамин голос, если записан, иначе синтез */
+function say(id, fallback){
+  if(!state.sound) return;
+  if(playClip(id)){ caption(CLIPS[id].text); return; }
+  speak(fallback);
+}
+function clipMsg(text){ const el=$('#clip-msg'); if(el) el.textContent=text; }
+function paintClipList(){
+  const box=$('#clip-list'); if(!box) return;
+  box.innerHTML='';
+  Object.keys(CLIPS).forEach(id=>{
+    const c=CLIPS[id], has=!!clipStore[id], rec_now=recordingId===id;
+    const row=document.createElement('div'); row.className='clip-row'+(has?' has':'');
+    row.innerHTML='<div class="clip-txt"><b>'+c.text+'</b><small>'+c.use+'</small></div>';
+    const btns=document.createElement('div'); btns.className='clip-btns';
+    const bRec=document.createElement('button'); bRec.className='btn small'+(rec_now?' primary':'');
+    bRec.textContent = rec_now ? '⏹ Стоп' : (has?'🎙 Переписать':'🎙 Записать');
+    bRec.addEventListener('click',()=>{ rec_now? stopRecord() : startRecord(id); });
+    btns.appendChild(bRec);
+    if(has && !rec_now){
+      const bPlay=document.createElement('button'); bPlay.className='btn small ghost'; bPlay.textContent='▶ Прослушать';
+      bPlay.addEventListener('click',()=>{ ac(); if(!playClip(id)) clipMsg('Запись не играет — перезагрузите страницу.'); });
+      btns.appendChild(bPlay);
+      const bDel=document.createElement('button'); bDel.className='btn small ghost'; bDel.textContent='✖';
+      bDel.addEventListener('click',async()=>{ await clipDelete(id); clipMsg('Запись удалена: «'+c.text+'»'); });
+      btns.appendChild(bDel);
+    }
+    row.appendChild(btns);
+    const mark=document.createElement('div'); mark.className='clip-mark'; mark.textContent = rec_now?'🔴 идёт запись…' : (has?'✅ записано':'—');
+    row.appendChild(mark);
+    box.appendChild(row);
+  });
+}
+function startRecord(id){
+  if(recordingId) stopRecord();
+  const md=navigator.mediaDevices;
+  if(!md || !md.getUserMedia || typeof MediaRecorder==='undefined'){
+    clipMsg('Браузер не умеет записывать звук. Попробуйте Chrome на Android или Safari на iPad, адрес сайта при этом должен начинаться с https://');
+    return;
+  }
+  md.getUserMedia({audio:true}).then(stream=>{
+    let chunks=[];
+    let mr;
+    try{ mr=new MediaRecorder(stream); }catch(e){
+      clipMsg('Не удалось начать запись: '+e.message); stream.getTracks().forEach(t=>t.stop()); return;
+    }
+    mr.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    mr.onstop=()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(chunks,{type:(chunks[0]&&chunks[0].type)||'audio/webm'});
+      const fr=new FileReader();
+      fr.onload=async()=>{ await clipSave(id, fr.result); clipMsg('Записано: «'+CLIPS[id].text+'» ('+Math.max(1,Math.round(blob.size/1024))+' КБ). Можно проверить кнопкой «Прослушать».'); };
+      fr.onerror=()=>clipMsg('Запись не сохранилась: браузер не смог прочитать звук.');
+      fr.readAsDataURL(blob);
+      recordingId=null; paintClipList();
+    };
+    rec=mr; recordingId=id; mr.start(250);
+    ac();
+    clipMsg('Говорите в микрофон планшета спокойно и близко: «'+CLIPS[id].text+'». Потом нажмите «Стоп».');
+    paintClipList();
+  }).catch(e=>{
+    recordingId=null; paintClipList();
+    clipMsg('Микрофон недоступен: '+(e && e.message ? e.message : 'разрешите доступ к микрофону в настройках браузера')+'.');
+  });
+}
+function stopRecord(){ if(rec && recordingId){ try{ rec.stop(); }catch(e){} } rec=null; }
 
 /* ------------------------------ звуки ------------------------------ */
 let AC=null;
@@ -805,13 +936,13 @@ function answerChoice(i,el){
     sndOk();
     scoreQuestion(q);
     feedback('🎉 '+fmt(pick(PRAISE)),'good');
-    speak(fmt(pick(PRAISE)));
+    say('good', fmt(pick(PRAISE)));
     setTimeout(nextQuestion, 1250);
   } else {
     q._tried=true;
     el.classList.add('wrong'); sndBad();
     setTimeout(()=>el.classList.remove('wrong'),600);
-    if(!q._saidNear){ q._saidNear=true; speak(fmt(pick(NEAR))); }
+    if(!q._saidNear){ q._saidNear=true; say('near', fmt(pick(NEAR))); }
     feedback('🤔 '+fmt(pick(NEAR)),'soft'); setMood('🤔');
   }
 }
@@ -820,12 +951,12 @@ function answerSort(bin){
   if(bin.classList.contains('right')) return;
   if(bin.dataset.id===q.item.cat){
     bin.classList.add('right'); sndOk(); scoreQuestion(q);
-    feedback('🎉 '+fmt(pick(PRAISE)),'good'); speak(fmt(pick(PRAISE)));
+    feedback('🎉 '+fmt(pick(PRAISE)),'good'); say('good', fmt(pick(PRAISE)));
     setTimeout(nextQuestion,1150);
   } else {
     q._tried=true; bin.classList.add('wrong'); sndBad();
     setTimeout(()=>bin.classList.remove('wrong'),600);
-    if(!q._saidNear){ q._saidNear=true; speak(fmt(pick(NEAR))); }
+    if(!q._saidNear){ q._saidNear=true; say('near', fmt(pick(NEAR))); }
     feedback('🤔 '+fmt(pick(NEAR)),'soft'); setMood('🤔');
   }
 }
@@ -1105,7 +1236,7 @@ function gradeTrace(){
   const what = (T.it.kind==='grid') ? 'линия' : (T.it.kind==='path' ? 'дорожка' : 'буква');
   const verb = (T.it.kind==='grid'||T.it.kind==='path') ? 'проведи' : 'обведи';
   R.results.push(val);
-  if(val===1){ R.stars++; sndOk(); confetti(30); feedback('Отлично! '+cap(what)+' почти целиком — '+Math.round(cov*100)+'%','good'); speak(fmt(pick(PRAISE))); }
+  if(val===1){ R.stars++; sndOk(); confetti(30); feedback('Отлично! '+cap(what)+' почти целиком — '+Math.round(cov*100)+'%','good'); say('good', fmt(pick(PRAISE))); }
   else if(val===0.5){ sndStar(); feedback('Хорошо! Закрыто '+Math.round(cov*100)+'% '+what+'. Попробуй вести линию плотнее.','soft'); speak('Неплохо! Давай ещё раз, старательно.'); }
   else { sndBad(); feedback('Получилось '+Math.round(cov*100)+'%. '+cap(verb)+' '+what+' ещё разок, старательно.','soft'); speak('Почти! Попробуй '+verb+' '+what+' ещё разок, '+dative(state.name)+'.'); }
   renderProgress(); renderRoundStars(); updateHeaderStats();
@@ -1184,16 +1315,16 @@ function finishRound(preset){
     $('#res-title').textContent = dg+', пятёрка!';
     $('#res-text').textContent = 'Так держать! Ты справилась'+(R.hints?' почти без подсказок':'')+'. В дневник приклеена наклейка.';
     sndFanfare(); confetti(150);
-    speak(dg+', пятёрка! Умница, '+state.name+'! Так держать!');
+    say('pyaterka', dg+', пятёрка! Умница, '+state.name+'! Так держать!');
   } else if(grade===4){
     $('#res-title').textContent = 'Четвёрка! Молодец, '+state.name+'!';
     $('#res-text').textContent = 'Хороший результат. Ещё чуть-чуть старания — и будет пятёрка!';
     confetti(60); tone(659,.2,'sine',.15,0); tone(880,.22,'sine',.13,.15);
-    speak('Кира получила четвёрку! Молодец! Ещё чуть-чуть старания, и будет пятёрка.');
+    say('four', 'Кира получила четвёрку! Молодец! Ещё чуть-чуть старания, и будет пятёрка.');
   } else {
     $('#res-title').textContent = 'Тройка. Но Кира старалась!';
     $('#res-text').textContent = 'Давай повторим это же задание — в следующий раз будет пятёрка. Ошибки — это нормально!';
-    speak('Тройка, но Кира большая молодец, что старалась. Давай повторим, и будет пятёрка!');
+    say('three', 'Тройка, но Кира большая молодец, что старалась. Давай повторим, и будет пятёрка!');
   }
   $('#res-stars').innerHTML='⭐'.repeat(R.stars);
   $('#res-sticker').innerHTML=sticker?('Новая наклейка: '+sticker):(grade===5?'':'За пятёрку появляется наклейка 🏅');
@@ -1226,7 +1357,7 @@ function showRest(){
   $('#rest-text').textContent='Сыграно игр сегодня: '+state.dayRounds+', пятёрок у Киры уже '+fives+
     '. Глазкам нужен отдых: попрыгай, попей водички, порисуй. Завтра будет ещё больше пятёрок!';
   $('#rest').classList.remove('hidden');
-  speak('Хватит играть, глазкам нужен отдых. Завтра будет ещё больше пятёрок!');
+  say('rest', 'Хватит играть, глазкам нужен отдых. Завтра будет ещё больше пятёрок!');
 }
 $('#rest-ok').addEventListener('click',()=>{ $('#rest').classList.add('hidden'); renderHub(); showView('hub'); });
 $('#rest-more').addEventListener('click',()=>{ state._extra=true; $('#rest').classList.add('hidden'); renderHub(); showView('hub'); });
@@ -1277,6 +1408,7 @@ function renderAdults(){
   $('#set-foreign').checked=!!state.speakForeign;
   $('#set-sparkle').checked=!!state.sparkles;
   fillVoiceList();
+  paintClipList();
   const rl=$('#set-rate'); if(rl) rl.value=Number(state.voiceRate)||0.93;
   const rv=$('#rate-val'); if(rv) rv.textContent=rateWord(state.voiceRate);
   $('#voice-info').textContent=voiceInfoText();
@@ -1414,7 +1546,7 @@ function addXp(n, why){
   if(after.xp>before.xp){
     confetti(120); sndFanfare();
     toast('Новый уровень: '+after.name, '🎉');
-    speak('Кира получила новый уровень: '+after.name.replace(/^\S+\s/,'')+'! Так держать!');
+    say('level', 'Кира получила новый уровень: '+after.name.replace(/^\S+\s/,'')+'! Так держать!');
     setMood('🤩');
   }
   paintLevel();
@@ -2328,6 +2460,7 @@ document.addEventListener('pointerdown',function once(){
   document.removeEventListener('pointerdown',once);
 },{once:true});
 watchVoices();
+loadClips();
 if('speechSynthesis' in window){
   setTimeout(()=>{ refreshVoices(); }, 1200);
   setTimeout(()=>{ refreshVoices(); }, 3000);
