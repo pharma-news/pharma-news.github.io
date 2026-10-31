@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Кира готовится к школе — обучающие игры</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%92%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 
@@ -108,6 +108,17 @@
           </select>
         </label>
         <label class="check"><input type="checkbox" id="set-sound"> Озвучка заданий</label>
+        <label class="voice-pick">Голос для озвучки:
+          <select id="set-voice"><option value="">Авто — самый красивый русский</option></select>
+        </label>
+        <label class="voice-rate">Скорость речи:
+          <input type="range" id="set-rate" min="0.6" max="1.2" step="0.05">
+          <span id="rate-val"></span>
+        </label>
+        <div class="panel-btns">
+          <button class="btn small" id="btn-voice-preview">🔉 Послушать этот голос</button>
+          <button class="btn small ghost" id="btn-voice-refresh">⟳ Найти голоса заново</button>
+        </div>
         <label class="check"><input type="checkbox" id="set-limit"> Ограничивать: не больше 4 игр подряд, потом «отдых»</label>
         <label class="check"><input type="checkbox" id="set-foreign"> Озвучивать задания и даже без русского голоса (будет звучать непонятно, но громко)</label>
         <label class="check"><input type="checkbox" id="set-sparkle"> Блёстки и сердечки под курсором (красиво, но чуть активнее)</label>
@@ -206,9 +217,9 @@
 <div id="sparkles" aria-hidden="true"></div>
 <div id="toasts"></div>
 
-<script src="data.js?v=6"></script>
-<script src="data2.js?v=6"></script>
-<script src="data3.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="data2.js?v=7"></script>
+<script src="data3.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

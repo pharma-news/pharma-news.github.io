@@ -17,7 +17,8 @@ function dateLabel(iso){ const d=new Date(iso); return ('0'+d.getDate()).slice(-
 
 /* ------------------------------ состояние ------------------------------ */
 const KEY='kira_prep_school_v1';
-const DEF={ name:'Кира', sound:true, diff:'средний', limit:true, speakForeign:false, sparkles:true,
+const DEF={ name:'Кира', sound:true, diff:'средний', limit:true, speakForeign:false, sparkles:true, voiceName:'',
+            voiceRate:0.93,
             stars:0, grades:[], stickers:[], skills:{}, best:{}, day:null, dayRounds:0,
             xp:0, streak:0, lastDay:null, daily:{date:'',game:'',done:false} };
 let state = loadState();
@@ -55,9 +56,49 @@ function dative(name){
 }
 
 /* ------------------------------ озвучка ------------------------------ */
-let voices=[];
-function refreshVoices(){ try{ if('speechSynthesis' in window) voices=window.speechSynthesis.getVoices()||[]; }catch(e){} }
-if('speechSynthesis' in window){ refreshVoices(); try{ window.speechSynthesis.onvoiceschanged=refreshVoices; }catch(e){} }
+let voices=[], keepAlive=0, voicePolls=0, refreshingVoices=false;
+function refreshVoices(){
+  if(refreshingVoices) return voices;   /* защита от круга: fillVoiceList → ruVoices → refreshVoices → … */
+  refreshingVoices=true;
+  try{ if('speechSynthesis' in window) voices=window.speechSynthesis.getVoices()||[]; }catch(e){}
+  try{ if(document.getElementById('set-voice')) fillVoiceList(); }catch(e){}
+  refreshingVoices=false;
+  return voices;
+}
+/* Android и iPad отдают список голосов не сразу — слушаем событие и подсраховываемся опросом */
+function watchVoices(){
+  if(!('speechSynthesis' in window)) return;
+  refreshVoices();
+  try{ window.speechSynthesis.addEventListener('voiceschanged', refreshVoices); }catch(e){}
+  try{ window.speechSynthesis.onvoiceschanged = refreshVoices; }catch(e){}
+  const poll=()=>{ voicePolls++; refreshVoices(); if(voices.length<3 && voicePolls<14) setTimeout(poll, 400); };
+  setTimeout(poll, 250);
+}
+const GOOD_RU=/(milena|katya|alena|alenka|irina|tatyana|tatiana|elena|arina|daria|nika|pavla|kolya|maxim|yuri|ruslan|svetlana|natalia|olga|google|yandex|salikhov|antonok|speech5|natural|online|neural|русск|голос)/i;
+function vScore(v){
+  const lang=(v.lang||'').toLowerCase(), name=v.name||'';
+  let s=0;
+  if(lang.indexOf('ru')===0) s+=100;
+  if(/online|natural|neural/i.test(name)) s+=45;
+  if(/online/i.test(name)) s+=6;
+  if(/google/i.test(name)) s+=32;
+  if(GOOD_RU.test(name)) s+=26;
+  if(/female|женск/i.test(name)) s+=8;
+  if(/espeak|sapi|novell|compact/i.test(name)) s-=18;
+  return s;
+}
+function allVoices(){ if(!voices.length) refreshVoices(); return voices.slice(); }
+function ruVoices(){ return allVoices().filter(v=>/^ru/i.test(v.lang||'')); }
+function pickVoice(){
+  if(state.voiceName){
+    const hit=allVoices().filter(v=>v.name===state.voiceName)[0];
+    if(hit) return hit;
+  }
+  const ru=ruVoices();
+  if(ru.length) return ru.slice().sort((a,b)=>vScore(b)-vScore(a))[0];
+  if(state.speakForeign){ const all=allVoices(); return all.length? all.slice().sort((a,b)=>vScore(b)-vScore(a))[0] : null; }
+  return null;
+}
 function caption(text){
   const c=$('#caption'); if(!c) return;
   c.textContent='🗣 '+text;
@@ -65,25 +106,87 @@ function caption(text){
   clearTimeout(caption._t);
   caption._t=setTimeout(()=>c.classList.remove('show'), 7000);
 }
-function ruVoice(){
-  if(!voices.length) refreshVoices();
-  const ru=voices.filter(v=>/^ru/i.test(v.lang||''));
-  return ru.filter(x=>/female|woman|milena|katya|alena|irina|tatyana|elena|google|Microsoft/i.test(x.name))[0] || ru[0] || null;
+/* длинные фразы Chrome и Android обрывают — режем по предложениям */
+function chunkText(t){
+  const s=String(t).replace(/\s+/g,' ').trim();
+  if(s.length<=160) return [s];
+  const parts=s.match(/[^.!?…]+[.!?…]*/g)||[s]; const out=[]; let cur='';
+  parts.forEach(p=>{ if((cur+p).trim().length>160){ if(cur.trim()) out.push(cur.trim()); cur=p; } else cur+=p; });
+  if(cur.trim()) out.push(cur.trim());
+  return out;
 }
 function speak(text, slow){
   if(!state.sound || !text) return;
   caption(text);
   if(!('speechSynthesis' in window)) return;
+  const v=pickVoice();
+  if(!v && !state.speakForeign) return;   /* русского голоса нет — молчим, показываем субтитр */
+  const ss=window.speechSynthesis;
   try{
-    const v=ruVoice();
-    if(!v && !state.speakForeign) return;   /* русского голоса нет — молчим, показываем субтитр */
-    window.speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(String(text));
-    u.lang='ru-RU';
-    if(v) u.voice=v;
-    u.rate = slow?0.72:0.94; u.pitch=1.12; u.volume=1;
-    window.speechSynthesis.speak(u);
+    ss.cancel();
+    clearInterval(keepAlive);
+    chunkText(text).forEach(part=>{
+      const u=new SpeechSynthesisUtterance(part);
+      u.lang='ru-RU';
+      if(v) u.voice=v;
+      const r=Number(state.voiceRate)||0.93;
+      u.rate = slow ? Math.max(0.55, r-0.2) : r;
+      u.pitch=1.12; u.volume=1;
+      ss.speak(u);
+    });
+    try{ ss.resume(); }catch(e){}
+    /* Chrome/Android иногда «засыпают» посреди фразы — периодически будим движок */
+    keepAlive=setInterval(()=>{ try{ ss.resume(); }catch(e){} }, 5000);
+    setTimeout(()=>clearInterval(keepAlive), 25000);
   }catch(e){}
+}
+function speechPlatform(){
+  const ua=navigator.userAgent||'';
+  if(/iPad|iPhone|iPod/.test(ua) || (navigator.platform==='MacIntel' && (navigator.maxTouchPoints||0)>1)) return 'ipad';
+  if(/Android/.test(ua)) return 'android';
+  if(/Windows/.test(ua)) return 'windows';
+  if(/Mac/.test(ua)) return 'mac';
+  return 'other';
+}
+const HOWTO={
+  ipad:'Планшет iPad: 1) Настройки → Универсальный доступ → Устное содержание → Голоса → «Русский» → скачать Милена (или Катя) — без скачивания голос может не появиться. 2) Проверьте, что не включён «Бесшумный режим»: переключатель сбоку планшета или значок колокольчика в Пункте управления — на планшете он глушит и озвучку тоже. 3) Прибавьте громкость кнопками сбоку. 4) Вернитесь на сайт и нажмите «Найти голоса заново».',
+  android:'Планшет Android: Настройки → Система → Язык и ввод → Текст в речь (TTS) → движок «Google Text-to-Speech» → Языки → скачать «Русский». Затем полностью закройте Chrome и откройте снова (или нажмите «Найти голоса заново»). Самый красивый голос — «Google русский».',
+  windows:'Windows/Edge: Параметры → Время и язык → Язык и регион → Русский → «…» → Скачать «Голосовой синтез». В Edge лучше всего звучат онлайн-голоса: выберите в списке выше «Microsoft Katya Online (Natural)» или «Microsoft Irina Online (Natural)».',
+  mac:'macOS: Системные настройки → Универсальный доступ → Устное содержание → Настройки → Русский → скачать Milena или Katya, затем обновить страницу.',
+  other:'Если русского голоса нет: скачайте голосовой синтез в настройках языка системы, затем нажмите «Найти голоса заново».'
+};
+function voiceInfoText(){
+  const p=speechPlatform();
+  if(!('speechSynthesis' in window)) return '🔉 В этом браузере нет голосового движка — задания будут только текстом и субтитрами. Откройте сайт в Chrome, Edge или Safari.';
+  const ru=ruVoices(), v=pickVoice();
+  if(!voices.length) return '🔉 Голоса ещё не загрузились. Нажмите «Найти голоса заново».'+ (HOWTO[p]?' '+HOWTO[p]:'');
+  if(!ru.length) return '🔉 Русский голос в системе не найден (всего голосов: '+voices.length+', все — других языков), поэтому задание показывается субтитром. '+HOWTO[p]+' Можно включить озвучку чужим голосом ниже — будет громко, но непонятно.';
+  return '🔉 Озвучка: '+ (v?('«'+v.name+'» ('+v.lang+')'):'нет') +
+    '. Русских голосов в системе: '+ru.length+
+    '. Нажмите «Послушать этот голос», чтобы проверить, нравится ли он Кире.';
+}
+function fillVoiceList(){
+  const sel=$('#set-voice'); if(!sel) return;
+  const cur=state.voiceName||'';
+  const ru=ruVoices().sort((a,b)=>vScore(b)-vScore(a));
+  const others=allVoices().filter(v=>!/^ru/i.test(v.lang||'')).sort((a,b)=>vScore(b)-vScore(a));
+  sel.innerHTML='<option value="">Авто — самый красивый русский</option>';
+  const opt=v=>{
+    const o=document.createElement('option');
+    o.value=v.name;
+    o.textContent='⭐ '+v.name+' · '+v.lang;
+    sel.appendChild(o);
+  };
+  ru.forEach(opt);
+  if(others.length){
+    const g=document.createElement('optgroup'); g.label='другие языки (звучат непонятно)';
+    others.slice(0,12).forEach(v=>{
+      const o=document.createElement('option'); o.value=v.name; o.textContent=v.name+' · '+v.lang; g.appendChild(o);
+    });
+    sel.appendChild(g);
+  }
+  sel.value=cur;
+  if(sel.value!==cur) sel.value='';
 }
 
 /* ------------------------------ звуки ------------------------------ */
@@ -1164,15 +1267,10 @@ function renderAdults(){
   $('#set-limit').checked=!!state.limit;
   $('#set-foreign').checked=!!state.speakForeign;
   $('#set-sparkle').checked=!!state.sparkles;
-  let vinfo='';
-  try{
-    const all=(window.speechSynthesis?window.speechSynthesis.getVoices():[]);
-    const ru=all.filter(v=>/^ru/i.test(v.lang||''));
-    if(!('speechSynthesis' in window)) vinfo='🔉 В этом браузере нет голосового движка — задания будут только текстом и субтитрами. Откройте сайт в Chrome или Edge.';
-    else if(!ru.length) vinfo='🔉 Русский голос в системе не найден, поэтому задания показываются субтитром (синяя строчка под заданием). Как включить голос: Параметры Windows → «Время и язык» → «Язык и регион» → добавить «Русский» → в списке языка нажать «…」 → «Скачать» и загрузить «Голосовой синтез» (Text-to-Speech). В Edge русский голос чаще всего уже есть (Microsoft Светлана/Ирина).';
-    else vinfo='🔉 Голос заданий: '+ru.map(v=>v.name).slice(0,3).join(', ')+'. Кира будет слышать задания, похвалу и «Кире, пятёрка!».';
-  }catch(e){ vinfo='🔉 Голос недоступен в этом браузере.'; }
-  $('#voice-info').textContent=vinfo;
+  fillVoiceList();
+  const rl=$('#set-rate'); if(rl) rl.value=Number(state.voiceRate)||0.93;
+  const rv=$('#rate-val'); if(rv) rv.textContent=rateWord(state.voiceRate);
+  $('#voice-info').textContent=voiceInfoText();
   $('#plan-table').innerHTML='<tr><th>День</th><th>Занятие 1</th><th>Занятие 2</th><th>Занятие 3</th></tr>'+
     PLAN.map(r=>'<tr>'+r.map((c,i)=>'<td>'+c+'</td>').join('')+'</tr>').join('');
   $('#book-table').innerHTML='<tr><th>Пособие</th><th>Чему учит</th><th>Игра на сайте</th></tr>'+
@@ -1200,14 +1298,53 @@ $('#set-diff').addEventListener('change',e=>{ state.diff=e.target.value; save();
 $('#set-sound').addEventListener('change',e=>{ state.sound=e.target.checked; save(); paintSoundBtn(); });
 $('#set-limit').addEventListener('change',e=>{ state.limit=e.target.checked; save(); });
 $('#set-foreign').addEventListener('change',e=>{ state.speakForeign=e.target.checked; save(); });
+function rateWord(r){
+  const x=Number(r)||0.93;
+  if(x<=0.7) return 'совсем медленно';
+  if(x<=0.85) return 'медленно';
+  if(x<=1.0) return 'обычным темпом';
+  return 'быстро';
+}
+function unlockSpeech(){ try{ window.speechSynthesis.resume(); }catch(e){} }
 $('#btn-voice-test').addEventListener('click',()=>{
-  ac(); state.sound=true; save(); paintSoundBtn();
+  ac(); unlockSpeech(); state.sound=true; save(); paintSoundBtn();
   const cb=$('#set-sound'); if(cb) cb.checked=true;
   speak('Кире, пятёрка! Умница, '+state.name+'!', true);
-  if(!ruVoice() && !state.speakForeign){
-    $('#voice-info').textContent='🔉 Русский голос не найден: прозвучал только субтитр «Кире, пятёрка!». Установите русский голос в Windows (Параметры → Время и язык → Язык и регион → Русский → скачать «Голосовой синтез») или включите галочку «Озвучивать даже без русского голоса».';
+  if(!pickVoice()){
+    $('#voice-info').textContent='🔉 Русский голос не найден: прозвучал только субтитр «Кире, пятёрка!». '+
+      (HOWTO[speechPlatform()]||'')+' Либо включите галочку «Озвучивать даже без русского голоса».';
   }
 });
+(function wireVoiceControls(){
+  const sel=$('#set-voice');
+  if(sel){
+    sel.addEventListener('change',e=>{
+      state.voiceName=e.target.value||''; save(); unlockSpeech();
+      $('#voice-info').textContent=voiceInfoText();
+      ac(); state.sound=true; save(); paintSoundBtn();
+      const cb=$('#set-sound'); if(cb) cb.checked=true;
+      speak('Кире, пятёрка! Тебе нравится, как я говорю?', true);
+    });
+  }
+  const rl=$('#set-rate');
+  if(rl){
+    rl.addEventListener('input',e=>{ state.voiceRate=Number(e.target.value)||0.93; save();
+      const rv=$('#rate-val'); if(rv) rv.textContent=rateWord(state.voiceRate); });
+    rl.addEventListener('change',()=>{ ac(); unlockSpeech(); speak('Привет, '+state.name+'! Кире, пятёрка!', true); });
+  }
+  const pv=$('#btn-voice-preview');
+  if(pv) pv.addEventListener('click',()=>{
+    ac(); unlockSpeech(); state.sound=true; save(); paintSoundBtn();
+    const cb=$('#set-sound'); if(cb) cb.checked=true;
+    speak('Кире, пятёрка! Молодец, '+state.name+'! Солнышко светит, а мы учимся дальше.', true);
+    $('#voice-info').textContent=voiceInfoText();
+  });
+  const rf=$('#btn-voice-refresh');
+  if(rf) rf.addEventListener('click',()=>{
+    voicePolls=0; watchVoices();
+    setTimeout(()=>{ $('#voice-info').textContent=voiceInfoText(); }, 900);
+  });
+})();
 $('#btn-reset').addEventListener('click',()=>{
   if(!confirm('Сбросить весь прогресс: оценки, звёздочки, наклейки и галочки умений?')) return;
   const name=state.name, sound=state.sound, diff=state.diff, limit=state.limit;
@@ -2149,5 +2286,21 @@ GEN['book.measure']=function(){
 
 /* ------------------------------ ЗАПУСК ------------------------------ */
 paintSoundBtn(); updateHeaderStats(); paintLevel(); renderHub();
-document.addEventListener('pointerdown',function once(){ ac(); document.removeEventListener('pointerdown',once); },{once:true});
-if('speechSynthesis' in window){ setTimeout(refreshVoices, 400); }
+document.addEventListener('pointerdown',function once(){
+  ac();
+  /* на планшете и телефоне голос можно «разбудить» только первым касанием */
+  if('speechSynthesis' in window){
+    try{
+      window.speechSynthesis.resume();
+      const warm=new SpeechSynthesisUtterance(' ');
+      warm.volume=0; warm.lang='ru-RU';
+      window.speechSynthesis.speak(warm);
+    }catch(e){}
+  }
+  document.removeEventListener('pointerdown',once);
+},{once:true});
+watchVoices();
+if('speechSynthesis' in window){
+  setTimeout(()=>{ refreshVoices(); }, 1200);
+  setTimeout(()=>{ refreshVoices(); }, 3000);
+}

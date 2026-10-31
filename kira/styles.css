@@ -469,3 +469,12 @@ td.grade.g3{color:#5b6b8a}
 .numline .nn-arrow{color:#b5527d; font-weight:800; padding:0 8px; font-size:22px}
 .io-legend{margin:8px auto 0; max-width:560px; font-size:15px; line-height:1.5; color:#7a3a52;
   background:#fff4fa; border:1px dashed #ffcfe4; border-radius:14px; padding:8px 13px; text-align:center}
+
+/* ---------------- выбор голоса на планшете и компьютере ---------------- */
+.voice-pick{display:block; font-size:15px; margin:12px 0 8px; color:#4a3a52; font-weight:600}
+.voice-pick select{display:block; width:100%; margin-top:6px; padding:11px 12px; font-size:16px;
+  border:1px solid var(--line); border-radius:12px; background:#fffafc; color:var(--ink); font-family:inherit}
+.voice-rate{display:flex; align-items:center; gap:12px; font-size:15px; margin:10px 0 14px; color:#4a3a52; font-weight:600}
+.voice-rate input[type=range]{flex:1; height:28px; accent-color:#e0245e; touch-action:none}
+#rate-val{font-size:14px; font-weight:600; color:#7a3a52; min-width:120px; text-align:right}
+@media (max-width:560px){ #rate-val{min-width:0; text-align:left} }
