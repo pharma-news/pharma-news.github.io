@@ -1651,17 +1651,26 @@ GEN['pet.table']=function(){
   };
 };
 GEN['pet.measure']=function(){
-  const steps=[[2,2],[3,3],[4,4],[2,4],[2,6],[3,6],[4,8],[2,8],[5,10],[3,9]];
+  /* мерка всегда короче ленты и берётся по несколько раз: 2, 3, 4 или 5 раз.
+     Лента не длиннее 10 клеток — иначе полоса не помещается на экране. */
+  const steps=[[2,4],[2,6],[2,8],[2,10],[3,6],[3,9],[4,8],[5,10]];
+  const kl=n=>(n===1?'клетка':(n<5?'клетки':'клеток'));
   return function(){
     const st=pick(steps), unit=st[0], total=st[1];
     const ans=total/unit;
-    const opts=numOpts(ans,[ans+1,ans+2,ans-1,total,unit].filter(c=>c>=1));
+    /* НЕ берём в варианты число клеток мерки и число клеток ленты:
+       пятилетка тыкнет в то, что видит на картинке, а не отмерит. */
+    const cands=[];
+    for(let d=1; d<=4; d++){ [ans+d, ans-d].forEach(v=>{
+      if(v>0 && v!==ans && v!==unit && v!==total && cands.indexOf(v)<0) cands.push(v);
+    }); }
+    const opts=shuffle([ans].concat(pickN(cands,2)));
     return { promptHtml:'<div class="ruler"><div class="ruler-strip" style="--cells:'+total+'"></div>'+
-             '<div class="ruler-unit" style="--cells:'+unit+'">мерка = '+unit+'</div></div>',
+             '<div class="ruler-unit" style="--cells:'+unit+'">мерка = '+unit+' '+kl(unit)+'</div></div>',
       prompt:'Сколько раз мерка укладывается в розовую ленту?',
-      speak:'Сколько раз мерка длиной '+unit+' клеток укладывается в ленту длиной '+total+' клеток?',
+      speak:'Сколько раз мерка длиной в '+unit+' '+kl(unit)+' укладывается в ленту длиной в '+total+' '+kl(total)+'?',
       options:opts.map(o=>({t:String(o),cls:'text'})), answer:opts.indexOf(ans),
-      hint:'Отмеряй мерку по очереди: '+Array.from({length:ans},(_,i)=>unit*(i+1)).join(', ')+'. Всего '+ans+' '+(ans===1?'раз':(ans<=4?'раза':'раз'))+'.' };
+      hint:'Отмеряй мерку по очереди, начиная с левого края ленты: '+Array.from({length:ans},(_,i)=>unit*(i+1)).join(', ')+'. Всего '+ans+' '+(ans===1?'раз':(ans<=4?'раза':'раз'))+'.' };
   };
 };
 GEN['pet.time']=function(){

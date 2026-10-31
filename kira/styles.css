@@ -321,12 +321,16 @@ canvas.trace{border:1.5px solid #ffdbe9; border-radius:18px; background:#fff; to
 .pet-table .pc{border:2px solid var(--pink-3); border-radius:16px; background:#fff; display:flex; align-items:center; justify-content:center; min-height:74px}
 .pet-table .emptycell{background:repeating-linear-gradient(45deg,#fff2f8,#fff2f8 8px,#ffe6f1 8px,#ffe6f1 16px);
   border-style:dashed; font-size:32px; color:var(--pink)}
-.ruler{--cellw:52px; display:flex; flex-direction:column; gap:10px; align-items:center; margin:8px 0 14px}
+/* лента и мерка выровнены по левому краю: мерку можно «приложить» к ленте с начала */
+.ruler{--cellw:52px; display:flex; flex-direction:column; gap:10px; align-items:flex-start; margin:8px 0 14px}
 .ruler-strip{height:44px; border-radius:12px; background:repeating-linear-gradient(90deg,var(--pink) 0 1px, #ffd0e2 1px calc(100%/var(--cells)));
   border:2px solid var(--pink); width:calc(var(--cells) * var(--cellw)); max-width:100%}
-.ruler-unit{height:34px; border-radius:10px; background:repeating-linear-gradient(90deg,#3ec6a8 0 1px,#d8f6ee 1px calc(100%/var(--cells)));
+.ruler-unit{position:relative; height:34px; border-radius:10px; background:repeating-linear-gradient(90deg,#3ec6a8 0 1px,#d8f6ee 1px calc(100%/var(--cells)));
   border:2px solid #2fae93; color:#1d6e5c; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center;
   width:calc(var(--cells) * var(--cellw)); max-width:100%}
+/* пунктирная линия вверх от правого края мерки: видно, сколько ленты занимает одна мерка */
+.ruler-unit::after{content:''; position:absolute; right:-2px; bottom:100%; height:54px;
+  border-right:2px dashed #2fae93; opacity:.8}
 
 /* ---------- игры по книге «Раз — ступенька, два — ступенька» ---------- */
 .ch-arrow{font-size:38px; color:#b5527d; font-weight:800; align-self:center}
