@@ -447,3 +447,24 @@ td.grade.g3{color:#5b6b8a}
   .pet-row.big{font-size:38px}
   .ruler-strip,.ruler-unit{width:100%}
 }
+
+/* ---------------- игры по методике Л. Г. Петерсон ---------------- */
+.hub-filter{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 20px; padding:12px 15px;
+  background:#fff; border:1.5px dashed #ffcfe4; border-radius:18px; box-shadow:0 4px 12px rgba(214,74,124,.07)}
+.hub-filter .hf-label{font-size:14px; color:#7a3a52; margin-right:auto}
+.hub-filter .hf{font:inherit; font-size:14px; font-weight:700; padding:8px 15px; border-radius:999px;
+  border:1.5px solid var(--line); background:#fff8fb; color:#7a3a52; cursor:pointer; transition:.15s}
+.hub-filter .hf:hover{border-color:var(--pink); transform:translateY(-1px)}
+.hub-filter .hf.on{background:linear-gradient(120deg,var(--pink),var(--lilac)); color:#fff; border-color:transparent;
+  box-shadow:0 6px 14px rgba(255,77,141,.26)}
+.s-pet{font-size:13px; font-weight:800; color:#8a3b63; background:#ffe6f1; border:1px solid #ffcfe4;
+  padding:4px 11px; border-radius:999px; white-space:nowrap}
+.game-card.pet-card{border-color:#f6cfe2; background:linear-gradient(180deg,#fff,#fff3fa)}
+.game-card .g-pet{display:inline-block; font-size:11.5px; font-weight:800; letter-spacing:.3px; color:#8a3b63;
+  background:#ffe6f1; border:1px solid #ffcfe4; padding:3px 9px; border-radius:999px; margin:0 0 7px}
+@media (max-width:560px){ .hub-filter .hf-label{width:100%; margin-bottom:4px} }
+.pet-note{margin:0 0 12px; padding:10px 13px; border-left:4px solid var(--pink); background:#fff4fa;
+  border-radius:0 14px 14px 0; color:#7a3a52; font-size:14.5px; line-height:1.55}
+.numline .nn-arrow{color:#b5527d; font-weight:800; padding:0 8px; font-size:22px}
+.io-legend{margin:8px auto 0; max-width:560px; font-size:15px; line-height:1.5; color:#7a3a52;
+  background:#fff4fa; border:1px dashed #ffcfe4; border-radius:14px; padding:8px 13px; text-align:center}

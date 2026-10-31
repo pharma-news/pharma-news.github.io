@@ -155,6 +155,9 @@ function allGames(){ const out=[]; SUBJECTS.forEach(s=>s.games.forEach(g=>out.pu
 function subjectOf(id){ return SUBJECTS.filter(s=>s.games.some(g=>g.id===id))[0]; }
 function gameOf(id){ let r=null; SUBJECTS.forEach(s=>s.games.forEach(g=>{ if(g.id===id) r=g; })); return r; }
 
+/* фильтр тем в хабe: all | pet (только по Петерсон) | plain (обычные) */
+let hubFilter='all';
+
 function renderHub(){
   $('#kid-name-top').textContent=state.name;
   $('#kid-name-hero').textContent=state.name;
@@ -176,23 +179,36 @@ function renderHub(){
   renderQuick();
   const dailyId=(state.daily && state.daily.date===todayKey() && !state.daily.done)?state.daily.game:'';
   const box=$('#subjects'); box.innerHTML='';
+  /* фильтр по автору: обычные игры и игры по методике Петерсон */
+  const bar=document.createElement('div'); bar.className='hub-filter';
+  const F=[['all','💗 Все игры'],['pet','👣 Только по Петерсон'],['plain','Без Петерсон']];
+  const petTotal=allGames().filter(x=>x.g.pet).length;
+  bar.innerHTML='<span class="hf-label">Игр по методике Л. Г. Петерсон: <b>'+petTotal+'</b> — помечены значком 👣</span>'+
+    F.map(f=>'<button type="button" class="hf'+(hubFilter===f[0]?' on':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join('');
+  box.appendChild(bar);
+  bar.addEventListener('click',e=>{ const b=e.target.closest('.hf'); if(!b) return; hubFilter=b.dataset.f; renderHub(); });
   SUBJECTS.forEach(sub=>{
+    const shown=sub.games.filter(g=>hubFilter==='all'?true:(hubFilter==='pet'?!!g.pet:!g.pet));
+    if(!shown.length) return;
+    const petN=sub.games.filter(g=>g.pet).length;
     const played=sub.games.filter(g=>state.best[g.id]).length;
     const pct=Math.round(played/sub.games.length*100);
     const sec=document.createElement('section');
     sec.className='subject'; sec.style.setProperty('--c',sub.color);
     const h=document.createElement('h2');
     h.innerHTML='<span class="s-emoji">'+sub.emoji+'</span><span class="s-title">'+sub.title+'</span>'+
+      (petN?'<span class="s-pet" title="Игр по методике Л. Г. Петерсон в этой теме">👣 '+petN+'</span>':'')+
       '<span class="s-progress"><span class="s-bar" style="width:'+Math.max(4,pct)+'%"></span>'+
       '<span class="s-bar-txt">'+played+' / '+sub.games.length+'</span></span>';
     const d=document.createElement('p'); d.className='subject-desc'; d.textContent=sub.desc;
     const grid=document.createElement('div'); grid.className='games';
-    sub.games.forEach(g=>{
+    shown.forEach(g=>{
       const b=state.best[g.id];
       const card=document.createElement('button');
-      card.className='game-card'+(g.id===dailyId?' daily-hot':''); card.type='button';
+      card.className='game-card'+(g.id===dailyId?' daily-hot':'')+(g.pet?' pet-card':''); card.type='button';
       card.innerHTML=
         '<span class="g-emoji">'+g.emoji+'</span>'+
+        (g.pet?'<span class="g-pet">👣 по Петерсон</span>':'')+
         '<span class="g-title">'+g.title+'</span>'+
         '<span class="g-desc">'+g.desc+'</span>'+
         '<span class="g-book">📚 '+g.book+'</span>'+
@@ -551,7 +567,7 @@ function startGame(sub,g){
 
   const factory = GEN[g.gen] ? GEN[g.gen]() : null;
   R={ sub:sub, game:g, kind:g.kind, qs:[], i:0, results:[], stars:0, hints:0, got:null, max:QUESTIONS, finished:false };
-  $('#game-title').innerHTML=g.emoji+' '+g.title+' <small class="gt-sub">'+sub.title+'</small>';
+  $('#game-title').innerHTML=g.emoji+' '+g.title+' <small class="gt-sub">'+(g.pet?('👣 по методике Л. Г. Петерсон · '+sub.title):sub.title)+'</small>';
   setMood('🙂');
 
   if(g.kind==='pairs'){ startPairs(); }
@@ -1163,6 +1179,12 @@ function renderAdults(){
     BOOKS.map(r=>'<tr><td>'+r[0]+'<br><small style="color:#8a7fb0">'+(r[3]||'')+'</small></td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>').join('');
   $('#bookmap-table').innerHTML='<tr><th>Занятия книги</th><th>Страницы</th><th>Чему учит занятие</th><th>Игры на сайте</th></tr>'+
     BOOK_MAP.map(r=>'<tr><td><b>'+r[0]+'</b></td><td>с. '+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td></tr>').join('');
+  const bm=$('#bookmap-table');
+  if(bm && bm.parentNode && !document.getElementById('pet-note')){
+    const p=document.createElement('p'); p.id='pet-note'; p.className='pet-note';
+    p.textContent='Игры по методике Л. Г. Петерсон и по её книге «Раз — ступенька, два — ступенька» (часть 1) разложены по обычным темам: 🔢 Математика, 🧠 Логика и память, 🔤 Азбука и грамотея, 🌍 Мир вокруг, ✍️ Прописи и рука и 📐 Линии, фигуры и углы. Все эти игры помечены значком 👣 «по Петерсон» — их 27, и на главной есть фильтр «Только по Петерсон».';
+    bm.parentNode.insertBefore(p, bm);
+  }
   const sk=$('#skills-list');
   sk.innerHTML=SKILLS.map((s,i)=>
     '<label class="check"><input type="checkbox" data-i="'+i+'" '+(state.skills[i]?'checked':'')+'> '+s+'</label>').join('');
@@ -1400,9 +1422,11 @@ GEN['pet.neighbors']=function(){
     const n=2+rnd(max-3);
     const before=Math.random()<.5;
     const ans=before? n-1 : n+1;
-    const opts=shuffle([ans].concat(pickN([n+ (before?1:-1), n+2, n-2, ans+2].filter(v=>v>=1&&v<=max&&v!==ans),2)));
+    const cands=[before? n+1 : n-1, n+2, n-2, ans+2, ans-2].filter(v=>v>=1&&v<=max&&v!==ans);
+    const uniq=[]; cands.forEach(v=>{ if(uniq.indexOf(v)<0) uniq.push(v); });
+    const opts=shuffle([ans].concat(pickN(uniq,2)));
     return { prompt:'Какое число живёт '+(before?'перед':'после')+' числа '+n+'?',
-      promptHtml:'<div class="numline">'+(before?'<b>'+n+'</b>':'<b>'+n+'</b>')+'</div>',
+      promptHtml:'<div class="numline">'+(before?'<b>?</b> <span class="nn-arrow">→</span> <b>'+n+'</b>':'<b>'+n+'</b> <span class="nn-arrow">→</span> <b>?</b>')+'</div>',
       speak:'Какое число живёт '+(before?'перед':'после')+' числа '+n+'?',
       options:opts.map(o=>({t:String(o),cls:'text'})), answer:opts.indexOf(ans),
       hint:'Числовой ряд: '+(n-2)+', '+(n-1)+', '+n+', '+(n+1)+', '+(n+2) };
@@ -1934,19 +1958,41 @@ GEN['book.sign']=function(){
 /* 7. «Внутри и снаружи» — зан. 17 */
 GEN['book.inside']=function(){
   const next=bBag(B_SCENES);
+  const CX=190, CY=150, RX=100, RY=70, W=380, H=300, HALO=27, GAP=40;
+  /* Каждый предмет ставим на фиксированном расстоянии от розовой границы:
+     внутри или снаружи — всегда заметно, линия не «слипается» с картинкой. */
+  const place=(it)=>{
+    const a=Math.atan2(it.y-115, it.x-175);
+    const localR=1/Math.sqrt(Math.pow(Math.cos(a)/RX,2)+Math.pow(Math.sin(a)/RY,2));
+    const d=it.in ? (localR-GAP) : (localR+GAP);
+    const x=Math.round(Math.max(34, Math.min(W-34, CX+d*Math.cos(a))));
+    const y=Math.round(Math.max(38, Math.min(H-38, CY+d*Math.sin(a))));
+    return {x:x, y:y};
+  };
   return function(){
     const sc=next(), it=pick(sc.items);
-    const pic='<div class="pet-row"><svg viewBox="0 0 340 220" width="340" height="220">'+
-      '<ellipse cx="175" cy="115" rx="110" ry="70" fill="#fff3f8" stroke="#e0245e" stroke-width="4" stroke-dasharray="10 7"/>'+
-      '<circle cx="'+it.x+'" cy="'+it.y+'" r="27" fill="none" stroke="#7a3a52" stroke-width="3" stroke-dasharray="4 4"/>'+
-      sc.items.map(o=>'<text x="'+o.x+'" y="'+(o.y+10)+'" font-size="30" text-anchor="middle">'+o.e+'</text>').join('')+
-      '</svg></div>';
-    return { prompt:'Где '+it.t+' — внутри линии или снаружи?',
-      speak:'Посмотри на картинку. '+cap(it.t)+' внутри большой линии или снаружи неё?',
-      item:{cat: it.in?'in':'out', t:it.t, emoji:it.e},
-      bins:[{id:'in',emoji:'⭕',label:'Внутри линии'},{id:'out',emoji:'🌍',label:'Снаружи линии'}],
-      hint: it.in ? 'Большая линия обнимает «'+it.t+'» — значит, он внутри.'
-                  : '«'+it.t+'» стоит за большой линией — он снаружи.' };
+    const pos=sc.items.map(o=>({e:o.e, t:o.t, in:o.in, p:place(o)}));
+    const tgt=pos.filter(o=>o.t===it.t)[0];
+    const W=380, H=260;
+    const half=Math.round(it.t.length*7.9)+9;
+    let lx=Math.max(half+4, Math.min(W-half-4, tgt.p.x));
+    let below=tgt.p.y+40 <= H-10;
+    let ly=below ? tgt.p.y+40 : tgt.p.y-34;
+    let svg='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+
+      '<ellipse cx="'+CX+'" cy="'+CY+'" rx="'+RX+'" ry="'+RY+'" fill="#fff0f6" stroke="#e0245e" stroke-width="7"/>'+
+      '<circle cx="'+tgt.p.x+'" cy="'+tgt.p.y+'" r="'+HALO+'" fill="#ffe6a6" stroke="#e0a100" stroke-width="3"/>'+
+      pos.map(o=>'<text x="'+o.p.x+'" y="'+(o.p.y+10)+'" font-size="'+(o===tgt?31:26)+'" text-anchor="middle">'+o.e+'</text>').join('')+
+      '<rect x="'+(lx-half)+'" y="'+(ly-15)+'" width="'+(half*2)+'" height="21" rx="9" fill="#ffffff" opacity=".86"/>'+
+      '<text x="'+lx+'" y="'+ly+'" font-size="15" font-weight="700" fill="#7a3a52" text-anchor="middle">'+it.t+'</text>'+
+      '</svg>';
+    return { promptHtml:'<div class="pet-row">'+svg+'</div>'+
+        '<div class="io-legend">🌸 Розовый овал — это граница, как заборчик. Смотрим, где предмет: <b>внутри</b> овала или <b>снаружи</b>.</div>',
+      prompt:'Где '+it.t+' — внутри розовой линии или снаружи?',
+      speak:'Посмотри на картинку: тут '+sc.name+'. Большая розовая линия — это граница, как заборчик. '+cap(it.t)+' стоит внутри этой линии или снаружи неё?',
+      options:[{t:'Внутри линии', cls:'text'},{t:'Снаружи линии', cls:'text'}],
+      answer:(tgt.in?0:1),
+      hint: it.in ? 'Розовая линия обнимает «'+it.t+'» — он внутри неё, за линией никто не стоит.'
+                  : '«'+it.t+'» стоит за розовой линией — значит, он снаружи, вне границы.' };
   };
 };
 
