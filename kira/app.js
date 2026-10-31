@@ -17,7 +17,7 @@ function dateLabel(iso){ const d=new Date(iso); return ('0'+d.getDate()).slice(-
 
 /* ------------------------------ состояние ------------------------------ */
 const KEY='kira_prep_school_v1';
-const DEF={ name:'Кира', sound:true, diff:'средний', limit:true, speakForeign:false, sparkles:true, voiceName:'',
+const DEF={ name:'Кира', sound:true, diff:'средний', limit:true, restNag:true, speakForeign:false, sparkles:true, voiceName:'',
             voiceRate:0.93,
             stars:0, grades:[], stickers:[], skills:{}, best:{}, day:null, dayRounds:0,
             xp:0, streak:0, lastDay:null, daily:{date:'',game:'',done:false} };
@@ -666,7 +666,7 @@ const QUESTIONS=5;
 function startGame(sub,g){
   /* дневное ограничение */
   if(state.day!==todayKey()){ state.day=todayKey(); state.dayRounds=0; save(); }
-  if(state.limit && state.dayRounds>=4 && !state._extra){ showRest(); return; }
+  if(restPolicy()==='modal' && !state._extra){ showRest(); return; }
 
   const factory = GEN[g.gen] ? GEN[g.gen]() : null;
   R={ sub:sub, game:g, kind:g.kind, qs:[], i:0, results:[], stars:0, hints:0, got:null, max:QUESTIONS, finished:false };
@@ -1204,8 +1204,14 @@ $('#res-close').addEventListener('click',()=>{ closeResult(); renderDiary(); sho
 $('#res-next').addEventListener('click',()=>{ closeResult(); renderHub(); showView('hub'); afterResultRest(); });
 $('#res-again').addEventListener('click',()=>{ const sub=R.sub,g=R.game; closeResult(); startGame(sub,g); });
 function closeResult(){ $('#result').classList.add('hidden'); }
+/* что делать, когда сыграно 4 игры: показать окно отдыха или не мешать вовсе */
+function restPolicy(){
+  if(!state.limit) return 'none';
+  if(state.dayRounds<4) return 'none';
+  return (state.restNag===false) ? 'quiet' : 'modal';
+}
 function afterResultRest(){
-  if(state.limit && state.dayRounds>=4) showRest();
+  if(restPolicy()==='modal') showRest();
 }
 $('#btn-sound').addEventListener('click',()=>{
   state.sound=!state.sound; save(); paintSoundBtn();
@@ -1265,6 +1271,9 @@ function renderAdults(){
   $('#set-diff').value=state.diff;
   $('#set-sound').checked=!!state.sound;
   $('#set-limit').checked=!!state.limit;
+  const restChk=$('#set-restnag'); if(restChk) restChk.checked = state.restNag!==false;
+  const limitLbl = restChk && restChk.closest('.check');
+  if(limitLbl) limitLbl.previousElementSibling.style.opacity = (state.restNag===false)?'.62':'1';
   $('#set-foreign').checked=!!state.speakForeign;
   $('#set-sparkle').checked=!!state.sparkles;
   fillVoiceList();
@@ -1297,6 +1306,14 @@ $('#set-name').addEventListener('input',e=>{
 $('#set-diff').addEventListener('change',e=>{ state.diff=e.target.value; save(); renderHub(); speak('Уровень: '+state.diff); });
 $('#set-sound').addEventListener('change',e=>{ state.sound=e.target.checked; save(); paintSoundBtn(); });
 $('#set-limit').addEventListener('change',e=>{ state.limit=e.target.checked; save(); });
+$('#set-restnag').addEventListener('change',e=>{
+  state.restNag=e.target.checked; save();
+  $('#set-limit').closest('.check').style.opacity = state.restNag? '1' : '.62';
+  const info=$('#voice-info');
+  if(info) info.textContent = state.restNag
+    ? '🔉 Напоминание об отдыхе включено: после 4 игр подряд Кира увидит окно «глазкам нужен отдых» и услышит голосок.'
+    : '🙂 Напоминание об отдыхе выключено: окно после 4 игр появляться не будет. Ограничение «не больше 4 игр» при этом можно оставить включённым — счётчик игр в дневнике продолжает работать.';
+});
 $('#set-foreign').addEventListener('change',e=>{ state.speakForeign=e.target.checked; save(); });
 function rateWord(r){
   const x=Number(r)||0.93;
@@ -1347,8 +1364,10 @@ $('#btn-voice-test').addEventListener('click',()=>{
 })();
 $('#btn-reset').addEventListener('click',()=>{
   if(!confirm('Сбросить весь прогресс: оценки, звёздочки, наклейки и галочки умений?')) return;
-  const name=state.name, sound=state.sound, diff=state.diff, limit=state.limit;
-  state=Object.assign({},DEF,{name:name,sound:sound,diff:diff,limit:limit});
+  const keep={ name:state.name, sound:state.sound, diff:state.diff, limit:state.limit,
+               restNag:state.restNag, speakForeign:state.speakForeign, sparkles:state.sparkles,
+               voiceName:state.voiceName, voiceRate:state.voiceRate };
+  state=Object.assign({},DEF,keep);
   save(); updateHeaderStats(); renderAdults(); renderDiary();
 });
 
