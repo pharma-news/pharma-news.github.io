@@ -1695,8 +1695,14 @@ function renderAdults(){
   const bm=$('#bookmap-table');
   if(bm && bm.parentNode && !document.getElementById('pet-note')){
     const p=document.createElement('p'); p.id='pet-note'; p.className='pet-note';
-    p.textContent='Игры по методике Л. Г. Петерсон и по её книге «Раз — ступенька, два — ступенька» (часть 1) разложены по обычным темам: 🔢 Математика, 🧠 Логика и память, 🔤 Азбука и грамотея, 🌍 Мир вокруг, ✍️ Прописи и рука и 📐 Линии, фигуры и углы. Все эти игры помечены значком 👣 «по Петерсон» — их 27, и на главной есть фильтр «Только по Петерсон».';
+    p.textContent='Игры по методике Л. Г. Петерсон разложены по обычным темам: 🔢 Математика, 🧠 Логика и память, 🔤 Азбука и грамотея, 🌍 Мир вокруг, ✍️ Прописи и рука и 📐 Линии, фигуры и углы. Все эти игры помечены значком 👣 «по Петерсон» — их '+allGames().filter(x=>x.g.pet).length+', и на главной есть фильтр «Только по Петерсон».';
     bm.parentNode.insertBefore(p, bm);
+  }
+  /* вторая карта книги: тетрадь «Игралочка», часть 3 (данные в data4.js) */
+  const ig=$('#igmap-table');
+  if(ig && typeof IGR_MAP !== 'undefined'){
+    ig.innerHTML='<tr><th>Занятия тетради</th><th>Страницы</th><th>Чему учит занятие</th><th>Игры на сайте</th></tr>'+
+      IGR_MAP.map(r=>'<tr><td><b>'+r[0]+'</b></td><td>с. '+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td></tr>').join('');
   }
   const sk=$('#skills-list');
   sk.innerHTML=SKILLS.map((s,i)=>
@@ -1953,20 +1959,22 @@ GEN['pet.space']=function(){
     const kinds=['справа','слева','между'];
     const kind=pick(kinds);
     let answer, prompt, speak, optsIdx;
+    const rowHtml='<div class="pet-row big">'+r.map(x=>'<span>'+x+'</span>').join('')+'</div>';
     if(kind==='между'){
       const s=rnd(r.length-2);
       answer=r[s+1];
       prompt='Кто стоит между '+r[s]+' и '+r[s+2]+'?';
-      speak='Рассмотри ряд. Кто стоит между '+r[s]+' и '+r[s+2]+'?';
+      speak='Рассмотри ряд предметов. Кто стоит между '+r[s]+' и '+r[s+2]+'? Тот, кто стоит сразу после одного и сразу перед другим.';
     } else {
       const anchorIdx = kind==='справа' ? rnd(r.length-1) : 1+rnd(r.length-1);
       const anchor=r[anchorIdx];
       answer = kind==='справа' ? r[anchorIdx+1] : r[anchorIdx-1];
-      prompt='Кто стоит '+kind+' от '+anchor+'?';
-      speak='Рассмотри ряд. Кто стоит '+kind+' от '+anchor+'?';
+      /* объясняем, где «право» и «лево»: иначе ряд из 5 картинок читается по-разному */
+      prompt='Кто стоит '+kind+' от '+anchor+'? (Право и лево смотрим на экране: как когда мы сами стоим слева.)';
+      speak='Рассмотри ряд предметов. Кто стоит '+kind+' от '+anchor+'? Лево и право мы считаем на экране: вот самая левая картинка, а вот самая правая.';
     }
     const opts=shuffle([answer].concat(pickN(r.filter(x=>x!==answer), 2)));
-    return { promptHtml:'<div class="pet-row big">'+r.map(x=>'<span>'+x+'</span>').join('')+'</div>',
+    return { promptHtml:rowHtml,
       prompt:prompt, speak:speak,
       options:opts.map(o=>({t:o,cls:'emoji-opt'})), answer:opts.indexOf(answer),
       hint:'Считаем глазами: вот '+r.join(' '), hintRow:r };
@@ -1980,15 +1988,15 @@ GEN['pet.ordinal']=function(){
     if(askNumber){
       const opts=shuffle([idx+1].concat(pickN([1,2,3,4,5,6].filter(x=>x!==idx+1),2)));
       return { promptHtml:'<div class="pet-row big">'+r.map(x=>'<span>'+x+'</span>').join('')+'</div>',
-        prompt:'Какой по счёту '+r[idx]+', если считать слева?',
-        speak:'Какой по счёту предмет '+r[idx]+', если считать слева? Первый — это самый левый.',
+        prompt:'Какой по счёту '+r[idx]+', если считать слева направо?',
+        speak:'Какой по счёту предмет '+r[idx]+', если считать слева направо? Первый — это самый левый.',
         options:opts.map(o=>({t:String(o),cls:'text'})), answer:opts.indexOf(idx+1),
         hint:'Считаем слева: '+r.map((x,i)=>(i+1)+'-'+x).join(',  ')+'.' };
     }
     const opts=shuffle([r[idx]].concat(pickN(r.filter(x=>x!==r[idx]),2)));
     return { promptHtml:'<div class="pet-row big">'+r.map((x,i)=>'<span>'+(i===idx?'👉':'')+x+'</span>').join('')+'</div>',
-      prompt:'Кто стоит '+ordName(idx+1)+'?',
-      speak:'Кто стоит '+ordName(idx+1)+', если считать слева?',
+      prompt:'Кто стоит '+ordName(idx+1)+', если считать слева направо?',
+      speak:'Кто стоит '+ordName(idx+1)+', если считать слева направо? Первый — это самый левый.',
       options:opts.map(o=>({t:o,cls:'emoji-opt'})), answer:opts.indexOf(r[idx]),
       hint:ordName(idx+1)+' в этом ряду — это '+r[idx]+'.' };
   };
@@ -2040,7 +2048,8 @@ GEN['pet.diff']=function(){
     const diff=a-b;
     const askMore=Math.random()<.7;
     const ansNum=diff;   /* и в вопросе «на сколько больше», и в вопросе «на сколько меньше» ответ — разница */
-    const opts=numOpts(ansNum,[diff+1,diff+2,diff+3,a+1,b+1,a-1]);
+    /* обманки держим около разницы: без чисел a и b, иначе ответ виден на картинке */
+    const opts=numOpts(diff,[diff+1,diff-1,diff+2,diff-2,diff+3]);
     const em=pick(COUNT_EMOJIS), em2=pick(COUNT_EMOJIS);
     return { promptHtml:'<div class="cmp"><div><b>'+a+'</b><br>'+em.repeat(a)+'</div><div><b>'+b+'</b><br>'+em2.repeat(b)+'</div></div>',
       prompt: askMore? 'На сколько '+a+' больше, чем '+b+'?' : 'На сколько '+b+' меньше, чем '+a+'?',
@@ -2157,16 +2166,20 @@ GEN['abc.lookalike']=function(){
   };
 };
 GEN['math.angles']=function(){
-  const ANG={круг:0, квадрат:4, треугольник:3, прямоугольник:4, овал:0};
+  /* число углов есть у каждой фигуры из SHAPES — включая новые ромб,
+     пятиугольник и шестиугольник из тетрадей Петерсон */
+  const ANG={'круг':0,'квадрат':4,'треугольник':3,'прямоугольник':4,'овал':0,
+             'ромб':4,'пятиугольник':5,'шестиугольник':6};
   return function(){
     const sh=pick(SHAPES);
     const n=ANG[sh.n];
-    const opts=shuffle([n].concat(pickN([1,2,3,4,5,0].filter(x=>x!==n),2)));
+    const opts=shuffle([n].concat(pickN([1,2,3,4,5,6,0].filter(x=>x!==n),2)));
     return { promptHtml:'<div class="shape-show">'+sh.svg+'</div>',
       prompt:'Сколько у фигуры «'+sh.n+'» углов?',
       speak:'Сколько у фигуры '+sh.n+' углов?',
       options:opts.map(o=>({t:String(o),cls:'text'})), answer:opts.indexOf(n),
-      hint: n===0?'У круга нет ни одного уголка — он круглый.':'У '+sh.n+' ровно '+n+' угла.' };
+      hint: n===0?'У круга нет ни одного уголка — он круглый.':'Это '+sh.n+'. В нём ровно '+n+' '+
+            (n===1?'угол':(n<5?'угла':'углов'))+'.' };
   };
 };
 GEN['read.letterPos']=function(){
@@ -2397,6 +2410,26 @@ function bBag(arr){ const bag=shuffle(arr.slice()); let i=0;
 function bRangeOpts(ans, lo, hi){
   const cand=[]; for(let v=lo;v<=hi;v++){ if(v!==ans) cand.push(v); }
   return shuffle([ans].concat(shuffle(cand).slice(0,2)));
+}
+/* «Сколько пар?»: неправильные ответы держим рядом с верным (k±1, k±2) —
+   так ребёнок именно считает пары, а не угадывает далёкое число */
+function bPairsOpts(k){
+  const cand=[]; [k+1,k-1,k+2,k-2].forEach(v=>{ if(v>=1&&v<=8&&v!==k) cand.push(v); });
+  return shuffle([k].concat(shuffle(cand).slice(0,2)));
+}
+/* «Пропущенные цифры»: два набора-обманки, похожих на верный (сдвиг на 1 или на 2),
+   чтобы вариант был один-единственный верный и при этом нечитаемый «на глаз» */
+function bGapsAlts(good, mx){
+  const txt=good.slice().sort((a,b)=>a-b).join(' и ');
+  const shift=(arr,d)=>{
+    const s=arr.map(v=>v+d);
+    if(s.some(v=>v<1||v>mx)) return '';
+    const t=s.sort((a,b)=>a-b).join(' и ');
+    return t===txt?'':t;
+  };
+  const out=[];
+  [1,-1,2,-2].forEach(d=>{ const t=shift(good,d); if(t && out.indexOf(t)<0) out.push(t); });
+  return out.slice(0,2);
 }
 const B_PLURAL = {'круг':'круги','квадрат':'квадраты','треугольник':'треугольники','овал':'овалы','прямоугольник':'прямоугольники'};
 const B_GENIT  = {'красный':'красного','синий':'синего','зелёный':'зелёного','жёлтый':'жёлтого',
@@ -2671,7 +2704,7 @@ GEN['book.pairs']=function(){
   return function(){
     const it=next(), k=2+rnd(4);
     const row='<div class="q-count pairs-row">'+Array.from({length:k},()=>'<span class="pairbox">'+it.e+it.e+'</span>').join('')+'</div>';
-    const os=numOpts(k,[k+1,k-1,k+2,k+3]);
+    const os=bPairsOpts(k);
     return { promptHtml:row, prompt:'Сколько тут пар?',
       speak:'Пара — это двое одинаковых: два носка, две варежки. Посчитай, сколько получилось пар.',
       options:os.map(o=>({t:String(o),cls:'text'})), answer:os.indexOf(k),
@@ -2694,9 +2727,12 @@ GEN['book.gaps']=function(){
     const row='<div class="numline num-cells">'+seq.map(v=>v?'<span class="ncell">'+v+'</span>':'<span class="ncell empty">❔</span>').join('')+'</div>';
     const nx=v=>v===mx?v-1:v+1, pv=v=>v===1?v+1:v-1, nn=v=>v<=mx-2?v+2:v-2;
     const jn=a=>a.slice().sort((x,y)=>x-y).join(' и ');
-    const alt=[jn(good.map(nx)), jn(good.map(pv)), jn(good.map(nn))]
-      .filter(t2=>t2!==txt && t2.split(' и ').every(v=>+v>=1 && +v<=mx));
-    const uniq=[]; alt.forEach(t2=>{ if(uniq.indexOf(t2)<0) uniq.push(t2); });
+    let uniq=[];
+    [jn(good.map(nx)), jn(good.map(pv)), jn(good.map(nn))]
+      .filter(t2=>t2!==txt && t2.split(' и ').every(v=>+v>=1 && +v<=mx))
+      .forEach(t2=>{ if(uniq.indexOf(t2)<0) uniq.push(t2); });
+    /* если ряд короткий (цифр 5) и обманок не хватает — берём сдвинутые наборы */
+    if(uniq.length<2) bGapsAlts(good, mx).forEach(t2=>{ if(uniq.indexOf(t2)<0) uniq.push(t2); });
     const os=shuffle([txt].concat(uniq.slice(0,2)));
     return { promptHtml:row, prompt: cnt>1?'Какие цифры спрятались?':'Какая цифра спряталась?',
       speak:'Числа идут по порядку, но часть закрыта. Скажи, '+(cnt>1?'какие цифры':'какая цифра')+' спряталось.',
@@ -2714,7 +2750,9 @@ GEN['book.cells']=function(){
     const ans=pat[0];
     const row='<div class="cellrow">'+cells.map(c=>'<span class="cellc" style="background:'+c.hex+'"></span>').join('')+
               '<span class="cellc next">❔</span></div>';
-    const os=shuffle([ans].concat(B_CELLS.filter(c=>c.hex!==ans.hex).slice(0,2)));
+    /* НЕ берём «первые две» клетки из списка: так неправильные ответы
+       всегда выглядели одинаково и угадывались без узора */
+    const os=shuffle([ans].concat(pickN(B_CELLS.filter(c=>c.hex!==ans.hex),2)));
     return { promptHtml:row, prompt:'Какой цвет будет в следующей клеточке?',
       speak:'Это узор по клеточкам, как внизу страницы книги. Посмотри, какой цвет повторяется, и выбери цвет следующей клеточки.',
       options:os.map(o=>({html:'<span class="cellc" style="background:'+o.hex+'"></span>', label:o.name, cls:'color-opt'})),

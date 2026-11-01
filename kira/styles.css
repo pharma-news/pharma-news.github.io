@@ -610,3 +610,46 @@ td.grade.g3{color:var(--sky)}
 .clip-mark{font-size:.8rem; color:var(--muted); min-width:104px; text-align:right}
 .clip-row.has .clip-mark{color:var(--mint)}
 @media (max-width:560px){ .clip-row{flex-wrap:wrap} .clip-mark{min-width:0; text-align:left} }
+
+/* ---------------- новые задания по тетради Петерсон «Игралочка», ч. 3 ---------------- */
+.ig-ribbons{align-items:center; gap:0; margin-bottom:4px}
+.ig-ribbons svg{max-width:100%}
+.ig-gap{height:12px}
+.ig-rib-note{margin:2px auto 10px; max-width:520px; font-size:.88rem; color:var(--ink); text-align:center;
+  background:var(--bg-2); border:1px dashed var(--pink-3); border-radius:12px; padding:6px 12px}
+.ig-keyrow{margin:4px 0 10px}
+.ig-key{display:inline-block; width:120px}
+.ig-key svg{width:120px; height:90px}
+.ig-doorrow{gap:10px; align-items:flex-end}
+.ig-doorprev svg{max-width:100%}
+.opt .ig-group{display:inline-flex; flex-wrap:wrap; gap:3px; justify-content:center; font-size:1.5rem; line-height:1.25}
+.ig-expr{display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px;
+  font-size:1.6rem; font-weight:800; color:var(--ink); margin:6px 0 14px}
+.ig-expr .ig-op{color:var(--pink); font-size:1.9rem}
+.ig-expr .ig-q{display:inline-flex; align-items:center; justify-content:center; width:64px; height:54px;
+  border:3px dashed var(--pink); border-radius:14px; color:var(--pink); background:var(--card)}
+.ig-opt{padding:10px 12px; min-height:4.6rem}
+.ig-days{flex-wrap:wrap; gap:6px; justify-content:center; margin:6px 0 14px}
+.ig-day{min-width:64px; padding:9px 7px; border:1.5px solid var(--pink-3); border-radius:12px; background:var(--card-2);
+  font-size:.78rem; font-weight:700; color:var(--ink); text-align:center}
+.ig-day-q{background:var(--card); border:2.5px dashed var(--pink); color:var(--pink); font-size:1.1rem}
+.ig-scene{max-width:640px; margin:6px auto 14px; padding:10px 14px; background:var(--card-2);
+  border:1.5px dashed var(--pink-3); border-radius:16px}
+.ig-scene-title{font-weight:800; color:var(--ink); font-size:1rem; text-align:center; margin-bottom:8px}
+.ig-scene-row{display:flex; align-items:center; gap:12px; padding:5px 0; border-top:1px dashed var(--line-2)}
+.ig-scene-emo{flex:1; font-size:1.6rem; line-height:1.3; word-spacing:2px}
+.ig-scene-lab{font-size:.9rem; font-weight:700; color:var(--ink); min-width:92px; text-align:right}
+.ig-numread{font-size:4.5rem; letter-spacing:1px; color:var(--pink)}
+.ig-cur{color:var(--pink); font-weight:800}
+.ig-coin{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
+  border-radius:50%; background:var(--gold-bg); border:2px solid var(--gold-line); color:var(--ink);
+  font-weight:800; font-size:.94rem}
+.ig-coinrow{display:flex; flex-wrap:wrap; gap:4px; justify-content:center; margin:8px 0 12px; align-items:center;
+  font-size:1.1rem; color:var(--pink); font-weight:800}
+.pet-row svg{max-width:100%; height:auto}
+@media (max-width:560px){
+  .ig-scene-emo{font-size:1.3rem}
+  .ig-day{min-width:52px; font-size:.68rem}
+  .ig-numread{font-size:3.5rem}
+  .ig-expr{gap:8px; font-size:1.4rem}
+}
