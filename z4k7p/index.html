@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="night">
 <head>
+<meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
@@ -586,7 +587,7 @@ function openVideo(i){
 
   const media=document.createElement('div'); media.className='media';
   const video=document.createElement('video');
-  video.src=`../Видео/${i}.mp4`;
+  video.src=`Видео/${i}.mp4`;
   video.playsInline=true; video.preload='auto';
   media.appendChild(video);
   const buf=document.createElement('div'); buf.className='buffering';
@@ -643,7 +644,7 @@ function openImage(i){
   bar.innerHTML=`<div class="t">Заповедь ${i}</div><button class="close" aria-label="закрыть">✕</button>`;
   const imgbox=document.createElement('div'); imgbox.className='imgbox';
   const img=document.createElement('img');
-  img.src=`../знаменитые казаки/Слайд${i}.JPG`;
+  img.src=`знаменитые казаки/Слайд${i}.JPG`;
   img.alt=`Слайд ${i}`;
   imgbox.appendChild(img);
   const cap=document.createElement('div'); cap.className='cap'; cap.textContent=DATA[i-1].cmd;
